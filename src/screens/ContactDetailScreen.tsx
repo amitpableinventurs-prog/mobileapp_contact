@@ -1,0 +1,364 @@
+import React, { useState } from 'react';
+import { Linking, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  Avatar,
+  Button,
+  Dialog,
+  Divider,
+  IconButton,
+  Menu,
+  Portal,
+  Snackbar,
+  Text,
+  TextInput,
+} from 'react-native-paper';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
+import { RootStackParamList } from '../navigation/types';
+import {
+  banContact,
+  deleteContact,
+  fetchContact,
+  reactivateContact,
+  suspendContact,
+} from '../api/contacts';
+import { addNote, deleteNote } from '../api/notes';
+import { getErrorMessage } from '../api/client';
+import { LoadingView } from '../components/LoadingView';
+import { StatusChip } from '../components/StatusChip';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'ContactDetail'>;
+
+export default function ContactDetailScreen({ route, navigation }: Props) {
+  const { id } = route.params;
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [snackbar, setSnackbar] = useState<string | null>(null);
+
+  const { data: contact, isLoading } = useQuery({
+    queryKey: ['contact', id],
+    queryFn: () => fetchContact(id),
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['contact', id] });
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+  };
+
+  const actionMutation = useMutation({
+    mutationFn: async (action: 'suspend' | 'ban' | 'reactivate' | 'delete') => {
+      if (action === 'suspend') return suspendContact(id);
+      if (action === 'ban') return banContact(id);
+      if (action === 'reactivate') return reactivateContact(id);
+      return deleteContact(id);
+    },
+    onSuccess: (_, action) => {
+      invalidate();
+      if (action === 'delete') {
+        navigation.goBack();
+      } else {
+        setSnackbar('Updated.');
+      }
+    },
+    onError: (err) => setSnackbar(getErrorMessage(err)),
+  });
+
+  const noteMutation = useMutation({
+    mutationFn: () => addNote(id, noteText.trim()),
+    onSuccess: () => {
+      setNoteText('');
+      invalidate();
+    },
+    onError: (err) => setSnackbar(getErrorMessage(err)),
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (noteId: number) => deleteNote(id, noteId),
+    onSuccess: invalidate,
+    onError: (err) => setSnackbar(getErrorMessage(err)),
+  });
+
+  if (isLoading || !contact) return <LoadingView />;
+
+  const canManage = user?.permissions.contacts_manage ?? false;
+  const canDelete = user?.permissions.contacts_delete ?? false;
+  const canReactivate = user?.permissions.contacts_reactivate ?? false;
+  const canEdit = (user?.permissions.contacts_update ?? false) && contact.approval_status !== 'pending';
+  const pendingEdit = contact.editRequests?.find((e) => e.status === 'pending');
+
+  const initials = contact.name
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  return (
+    <View style={styles.flex}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Avatar.Text size={72} label={initials || '?'} />
+          <Text variant="headlineSmall" style={styles.name}>
+            {contact.name}
+          </Text>
+          <View style={styles.chipsRow}>
+            {contact.approval_status && contact.approval_status !== 'approved' ? (
+              <StatusChip status={contact.approval_status} />
+            ) : null}
+            {contact.status && contact.status !== 'active' ? (
+              <StatusChip status={contact.status} />
+            ) : null}
+            {contact.group ? (
+              <StatusChip status="approved" label={contact.group.name} />
+            ) : null}
+          </View>
+        </View>
+
+        {pendingEdit ? (
+          <View style={styles.pendingBanner}>
+            <MaterialCommunityIcons name="clock-alert-outline" size={18} color="#92400E" />
+            <Text style={styles.pendingBannerText}>
+              An edit to this contact is awaiting approval.
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.card}>
+          <InfoRow
+            icon="phone"
+            value={contact.phone}
+            onPress={contact.phone ? () => Linking.openURL(`tel:${contact.phone}`) : undefined}
+          />
+          <InfoRow
+            icon="email"
+            value={contact.email}
+            onPress={contact.email ? () => Linking.openURL(`mailto:${contact.email}`) : undefined}
+          />
+          <InfoRow icon="office-building" value={contact.company} />
+          <InfoRow icon="briefcase-outline" value={contact.job_title} />
+          <InfoRow icon="map-marker-outline" value={contact.address ?? contact.city} />
+          <InfoRow
+            icon="web"
+            value={contact.website}
+            onPress={contact.website ? () => Linking.openURL(contact.website!) : undefined}
+          />
+        </View>
+
+        {contact.tags && contact.tags.length > 0 ? (
+          <View style={styles.tagsRow}>
+            {contact.tags.map((t) => (
+              <Text key={t.id} style={styles.tag}>
+                #{t.name}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {contact.notes ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Quick notes</Text>
+            <Text style={styles.quickNote}>{contact.notes}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Activity notes</Text>
+          {(contact.contactNotes ?? []).length === 0 ? (
+            <Text style={styles.emptyNotes}>No notes yet.</Text>
+          ) : (
+            contact.contactNotes!.map((note) => (
+              <View key={note.id} style={styles.noteRow}>
+                <View style={styles.noteBody}>
+                  <Text style={styles.noteAuthor}>{note.author?.name ?? 'Unknown'}</Text>
+                  <Text style={styles.noteText}>{note.note_html}</Text>
+                </View>
+                {canManage || note.user_id === user?.id ? (
+                  <IconButton
+                    icon="delete-outline"
+                    size={18}
+                    onPress={() => deleteNoteMutation.mutate(note.id)}
+                  />
+                ) : null}
+              </View>
+            ))
+          )}
+
+          <Divider style={styles.divider} />
+          <TextInput
+            mode="outlined"
+            placeholder="Add a note…"
+            value={noteText}
+            onChangeText={setNoteText}
+            multiline
+            style={styles.noteInput}
+          />
+          <Button
+            mode="contained-tonal"
+            onPress={() => noteMutation.mutate()}
+            disabled={!noteText.trim() || noteMutation.isPending}
+            loading={noteMutation.isPending}
+            style={styles.noteButton}
+          >
+            Add note
+          </Button>
+        </View>
+      </ScrollView>
+
+      <View style={styles.actionBar}>
+        {canEdit ? (
+          <Button
+            mode="contained"
+            icon="pencil"
+            style={styles.editButton}
+            onPress={() => navigation.navigate('ContactForm', { mode: 'edit', id })}
+            disabled={!!pendingEdit}
+          >
+            Edit
+          </Button>
+        ) : null}
+        {canManage ? (
+          <Menu
+            visible={menuVisible}
+            onDismiss={() => setMenuVisible(false)}
+            anchor={
+              <IconButton icon="dots-vertical" mode="outlined" onPress={() => setMenuVisible(true)} />
+            }
+          >
+            {contact.status !== 'suspended' ? (
+              <Menu.Item
+                title="Suspend"
+                leadingIcon="pause-circle-outline"
+                onPress={() => {
+                  setMenuVisible(false);
+                  actionMutation.mutate('suspend');
+                }}
+              />
+            ) : null}
+            {contact.status !== 'banned' ? (
+              <Menu.Item
+                title="Ban"
+                leadingIcon="cancel"
+                onPress={() => {
+                  setMenuVisible(false);
+                  actionMutation.mutate('ban');
+                }}
+              />
+            ) : null}
+            {canReactivate && contact.status && contact.status !== 'active' ? (
+              <Menu.Item
+                title="Reactivate"
+                leadingIcon="check-circle-outline"
+                onPress={() => {
+                  setMenuVisible(false);
+                  actionMutation.mutate('reactivate');
+                }}
+              />
+            ) : null}
+            {canDelete ? (
+              <Menu.Item
+                title="Delete"
+                leadingIcon="trash-can-outline"
+                onPress={() => {
+                  setMenuVisible(false);
+                  setConfirmDelete(true);
+                }}
+              />
+            ) : null}
+          </Menu>
+        ) : null}
+      </View>
+
+      <Portal>
+        <Dialog visible={confirmDelete} onDismiss={() => setConfirmDelete(false)}>
+          <Dialog.Title>Delete contact?</Dialog.Title>
+          <Dialog.Content>
+            <Text>This moves {contact.name} to trash. This can't be undone from the app.</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button
+              onPress={() => {
+                setConfirmDelete(false);
+                actionMutation.mutate('delete');
+              }}
+              textColor="#DC2626"
+            >
+              Delete
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Snackbar visible={!!snackbar} onDismiss={() => setSnackbar(null)} duration={3000}>
+        {snackbar}
+      </Snackbar>
+    </View>
+  );
+}
+
+function InfoRow({
+  icon,
+  value,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  value?: string | null;
+  onPress?: () => void;
+}) {
+  if (!value) return null;
+  const Wrapper = onPress ? TouchableOpacity : View;
+  return (
+    <Wrapper style={styles.infoRow} onPress={onPress} activeOpacity={0.6}>
+      <MaterialCommunityIcons name={icon} size={20} color="#6B7280" />
+      <Text style={[styles.infoValue, onPress ? styles.link : null]}>{value}</Text>
+    </Wrapper>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  content: { padding: 16, paddingBottom: 24, gap: 12 },
+  header: { alignItems: 'center', gap: 8, marginBottom: 8 },
+  name: { fontWeight: '700', textAlign: 'center' },
+  chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
+  pendingBanner: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 10,
+  },
+  pendingBannerText: { color: '#92400E', flex: 1 },
+  card: { backgroundColor: '#F9FAFB', borderRadius: 14, padding: 14, gap: 10 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  infoValue: { fontSize: 14, flex: 1 },
+  link: { color: '#4F46E5' },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: { fontSize: 12, color: '#4F46E5', backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  sectionTitle: { fontWeight: '700', marginBottom: 4 },
+  quickNote: { fontSize: 14, opacity: 0.8 },
+  emptyNotes: { opacity: 0.5, fontSize: 13 },
+  noteRow: { flexDirection: 'row', gap: 8, paddingVertical: 6 },
+  noteBody: { flex: 1 },
+  noteAuthor: { fontWeight: '600', fontSize: 13 },
+  noteText: { fontSize: 14 },
+  divider: { marginVertical: 8 },
+  noteInput: { backgroundColor: 'white' },
+  noteButton: { marginTop: 8, alignSelf: 'flex-end' },
+  actionBar: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EEF0F3',
+    backgroundColor: 'white',
+  },
+  editButton: { flex: 1 },
+});

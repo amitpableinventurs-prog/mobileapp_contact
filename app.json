@@ -1,25 +1,27 @@
 {
   "expo": {
-    "name": "mobileapp_contact",
-    "slug": "mobileapp_contact",
+    "name": "LaraContact",
+    "slug": "laracontact-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
+    "platforms": [
+      "android"
+    ],
     "android": {
+      "package": "com.laracontact.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#4F46E5",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ]
   }
 }
