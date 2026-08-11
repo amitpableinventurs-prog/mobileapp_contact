@@ -3,6 +3,8 @@ export type UserFormParams = { mode: 'create' } | { mode: 'edit'; id: number };
 
 export type RootStackParamList = {
   Login: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { email: string } | undefined;
   Main: undefined;
   ContactDetail: { id: number };
   ContactForm: ContactFormParams;

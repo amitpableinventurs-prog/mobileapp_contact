@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { RootNavigationProp, RootStackParamList } from '../navigation/types';
+import { branding } from '../branding';
 
 function HubCard({
   icon,
@@ -20,7 +21,7 @@ function HubCard({
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.iconCircle}>
-        <MaterialCommunityIcons name={icon} size={24} color="#4F46E5" />
+        <MaterialCommunityIcons name={icon} size={24} color={branding.colors.primary} />
       </View>
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle}>{title}</Text>

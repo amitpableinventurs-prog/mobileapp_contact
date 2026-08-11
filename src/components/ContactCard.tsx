@@ -4,6 +4,7 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Avatar, Text } from 'react-native-paper';
 import { Contact } from '../types';
 import { StatusChip } from './StatusChip';
+import { resolvePhotoUrl } from '../utils/photoUrl';
 
 export function ContactCard({ contact, onPress }: { contact: Contact; onPress: () => void }) {
   const initials = contact.name
@@ -12,10 +13,15 @@ export function ContactCard({ contact, onPress }: { contact: Contact; onPress: (
     .slice(0, 2)
     .join('')
     .toUpperCase();
+  const photoUrl = resolvePhotoUrl(contact.photo);
 
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.6}>
-      <Avatar.Text size={44} label={initials || '?'} />
+      {photoUrl ? (
+        <Avatar.Image size={44} source={{ uri: photoUrl }} />
+      ) : (
+        <Avatar.Text size={44} label={initials || '?'} />
+      )}
       <View style={styles.body}>
         <Text style={styles.name} numberOfLines={1}>
           {contact.name}

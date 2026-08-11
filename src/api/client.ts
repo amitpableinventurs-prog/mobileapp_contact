@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import * as tokenStorage from './tokenStorage';
 import { API_BASE_URL } from '../config';
 
 const TOKEN_KEY = 'laracontact_token';
@@ -10,7 +10,7 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  const token = await tokenStorage.getItemAsync(TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -18,15 +18,15 @@ apiClient.interceptors.request.use(async (config) => {
 });
 
 export async function saveToken(token: string) {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await tokenStorage.setItemAsync(TOKEN_KEY, token);
 }
 
 export async function clearToken() {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await tokenStorage.deleteItemAsync(TOKEN_KEY);
 }
 
 export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return tokenStorage.getItemAsync(TOKEN_KEY);
 }
 
 /** Laravel returns {message, errors:{field:[msgs]}} on 422, {message} on 401/403/404/500. */

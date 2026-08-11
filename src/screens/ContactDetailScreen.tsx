@@ -17,17 +17,21 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { RootStackParamList } from '../navigation/types';
+import { branding } from '../branding';
 import {
   banContact,
   deleteContact,
   fetchContact,
+  rateContact,
   reactivateContact,
   suspendContact,
 } from '../api/contacts';
 import { addNote, deleteNote } from '../api/notes';
+import { logCall } from '../api/calls';
 import { getErrorMessage } from '../api/client';
 import { LoadingView } from '../components/LoadingView';
 import { StatusChip } from '../components/StatusChip';
+import { resolvePhotoUrl } from '../utils/photoUrl';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactDetail'>;
 
@@ -78,11 +82,41 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     onError: (err) => setSnackbar(getErrorMessage(err)),
   });
 
+  const rateMutation = useMutation({
+    mutationFn: (rating: number) => rateContact(id, rating),
+    onSuccess: invalidate,
+    onError: (err) => setSnackbar(getErrorMessage(err)),
+  });
+
   const deleteNoteMutation = useMutation({
     mutationFn: (noteId: number) => deleteNote(id, noteId),
     onSuccess: invalidate,
     onError: (err) => setSnackbar(getErrorMessage(err)),
   });
+
+  // Best-effort: the dialer opens regardless of whether logging succeeds, so
+  // failures here are silent rather than interrupting the call with a snackbar.
+  const callLogMutation = useMutation({
+    mutationFn: () => logCall(id),
+    onSuccess: invalidate,
+  });
+
+  const handleCall = () => {
+    if (!contact?.phone) return;
+    Linking.openURL(`tel:${contact.phone}`);
+    callLogMutation.mutate();
+  };
+
+  const handleWhatsApp = () => {
+    if (!contact?.phone) return;
+    const digits = contact.phone.replace(/\D/g, '');
+    Linking.openURL(`https://wa.me/${digits}`);
+  };
+
+  const handleEmail = () => {
+    if (!contact?.email) return;
+    Linking.openURL(`mailto:${contact.email}`);
+  };
 
   if (isLoading || !contact) return <LoadingView />;
 
@@ -98,12 +132,17 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     .slice(0, 2)
     .join('')
     .toUpperCase();
+  const photoUrl = resolvePhotoUrl(contact.photo);
 
   return (
     <View style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Avatar.Text size={72} label={initials || '?'} />
+          {photoUrl ? (
+            <Avatar.Image size={72} source={{ uri: photoUrl }} />
+          ) : (
+            <Avatar.Text size={72} label={initials || '?'} />
+          )}
           <Text variant="headlineSmall" style={styles.name}>
             {contact.name}
           </Text>
@@ -118,6 +157,33 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
               <StatusChip status="approved" label={contact.group.name} />
             ) : null}
           </View>
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <TouchableOpacity
+                key={star}
+                onPress={() => rateMutation.mutate(star)}
+                disabled={rateMutation.isPending}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              >
+                <MaterialCommunityIcons
+                  name={star <= Math.round(Number(contact.rating ?? 0)) ? 'star' : 'star-outline'}
+                  size={26}
+                  color="#F59E0B"
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.quickActions}>
+            {contact.phone ? (
+              <QuickAction icon="phone" label="Call" color="#16A34A" onPress={handleCall} />
+            ) : null}
+            {contact.phone ? (
+              <QuickAction icon="whatsapp" label="WhatsApp" color="#22C55E" onPress={handleWhatsApp} />
+            ) : null}
+            {contact.email ? (
+              <QuickAction icon="email-outline" label="Email" color={branding.colors.primary} onPress={handleEmail} />
+            ) : null}
+          </View>
         </View>
 
         {pendingEdit ? (
@@ -130,11 +196,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
         ) : null}
 
         <View style={styles.card}>
-          <InfoRow
-            icon="phone"
-            value={contact.phone}
-            onPress={contact.phone ? () => Linking.openURL(`tel:${contact.phone}`) : undefined}
-          />
+          <InfoRow icon="phone" value={contact.phone} onPress={contact.phone ? handleCall : undefined} />
           <InfoRow
             icon="email"
             value={contact.email}
@@ -164,6 +226,20 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Quick notes</Text>
             <Text style={styles.quickNote}>{contact.notes}</Text>
+          </View>
+        ) : null}
+
+        {(contact.calls ?? []).length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Call log</Text>
+            {contact.calls!.map((call) => (
+              <View key={call.id} style={styles.callRow}>
+                <MaterialCommunityIcons name="phone-outgoing-outline" size={16} color="#6B7280" />
+                <Text style={styles.callText}>
+                  {call.user?.name ?? 'Unknown'} called {new Date(call.sent_at).toLocaleString()}
+                </Text>
+              </View>
+            ))}
           </View>
         ) : null}
 
@@ -302,6 +378,27 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   );
 }
 
+function QuickAction({
+  icon,
+  label,
+  color,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  label: string;
+  color: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.7}>
+      <View style={[styles.quickActionIcon, { backgroundColor: `${color}1A` }]}>
+        <MaterialCommunityIcons name={icon} size={22} color={color} />
+      </View>
+      <Text style={styles.quickActionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 function InfoRow({
   icon,
   value,
@@ -327,6 +424,17 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: 8, marginBottom: 8 },
   name: { fontWeight: '700', textAlign: 'center' },
   chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
+  starsRow: { flexDirection: 'row', gap: 4, marginTop: 4 },
+  quickActions: { flexDirection: 'row', gap: 24, marginTop: 12 },
+  quickAction: { alignItems: 'center', gap: 4 },
+  quickActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionLabel: { fontSize: 11, opacity: 0.7 },
   pendingBanner: {
     flexDirection: 'row',
     gap: 8,
@@ -339,12 +447,14 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#F9FAFB', borderRadius: 14, padding: 14, gap: 10 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   infoValue: { fontSize: 14, flex: 1 },
-  link: { color: '#4F46E5' },
+  link: { color: branding.colors.primary },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { fontSize: 12, color: '#4F46E5', backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  tag: { fontSize: 12, color: branding.colors.primary, backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
   sectionTitle: { fontWeight: '700', marginBottom: 4 },
   quickNote: { fontSize: 14, opacity: 0.8 },
   emptyNotes: { opacity: 0.5, fontSize: 13 },
+  callRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  callText: { fontSize: 13, opacity: 0.8 },
   noteRow: { flexDirection: 'row', gap: 8, paddingVertical: 6 },
   noteBody: { flex: 1 },
   noteAuthor: { fontWeight: '600', fontSize: 13 },

@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { RootStackParamList } from './types';
 import { LoadingView } from '../components/LoadingView';
 import LoginScreen from '../screens/LoginScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import MainTabs from './MainTabs';
 import ContactDetailScreen from '../screens/ContactDetailScreen';
 import ContactFormScreen from '../screens/ContactFormScreen';
@@ -22,7 +24,19 @@ export default function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerTitleAlign: 'center' }}>
       {!user ? (
-        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+            options={{ title: 'Reset password' }}
+          />
+          <Stack.Screen
+            name="ResetPassword"
+            component={ResetPasswordScreen}
+            options={{ title: 'New password' }}
+          />
+        </>
       ) : (
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />

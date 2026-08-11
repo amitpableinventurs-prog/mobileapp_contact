@@ -3,6 +3,10 @@
 A React Native (Expo) client for the LaraContact CRM, with full role-based
 access for all four roles: Super Admin, Admin, Manager, Clerk.
 
+Built to be white-labeled and resold per client — see
+[WHITE_LABEL.md](WHITE_LABEL.md) for how to swap the logo, brand colors, and
+app name.
+
 ## Prerequisites
 
 - The backend must be running: `http://localhost/laracontact` (XAMPP Apache + MariaDB, already set up).
@@ -80,6 +84,9 @@ src/
   navigation/   Root stack + role-aware bottom tabs
   screens/      One screen per file
   config.ts     API_BASE_URL
+  branding.ts   App name, tagline, logo, brand colors (see WHITE_LABEL.md)
   theme.ts      Colors, role badges, status chip colors
   types.ts      TypeScript types matching the API's JSON shapes
+assets/
+  branding/     logo.svg, mark.svg — edit these, then `npm run branding:icons`
 ```

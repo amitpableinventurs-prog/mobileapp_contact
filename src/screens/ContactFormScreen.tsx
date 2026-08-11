@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Chip, HelperText, Menu, Snackbar, Text, TextInput } from 'react-native-paper';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Avatar, Button, Chip, HelperText, Menu, Snackbar, Text, TextInput } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { createContact, fetchContact, updateContact } from '../api/contacts';
@@ -10,6 +12,9 @@ import { fetchGroups } from '../api/groups';
 import { fetchTags } from '../api/tags';
 import { getErrorMessage } from '../api/client';
 import { LoadingView } from '../components/LoadingView';
+import { resolvePhotoUrl } from '../utils/photoUrl';
+import { branding } from '../branding';
+import { PickedPhoto } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactForm'>;
 
@@ -44,6 +49,7 @@ export default function ContactFormScreen({ route, navigation }: Props) {
   const [groupMenuOpen, setGroupMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<PickedPhoto | null>(null);
 
   useEffect(() => {
     if (existing) {
@@ -63,6 +69,26 @@ export default function ContactFormScreen({ route, navigation }: Props) {
 
   const isManagerEditingExisting = mode === 'edit' && (user?.permissions.is_manager ?? false);
 
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setSnackbar('Photo library permission is required to pick a picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets.length) return;
+    const asset = result.assets[0];
+    const filename = asset.uri.split('/').pop() ?? `photo-${Date.now()}.jpg`;
+    const extension = /\.(\w+)$/.exec(filename)?.[1]?.toLowerCase();
+    const type = extension ? `image/${extension === 'jpg' ? 'jpeg' : extension}` : 'image/jpeg';
+    setPhoto({ uri: asset.uri, name: filename, type });
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
       const values = {
@@ -77,6 +103,7 @@ export default function ContactFormScreen({ route, navigation }: Props) {
         lifecycle_stage: lifecycleStage,
         group_id: groupId,
         tags: selectedTags,
+        photo,
       };
       if (mode === 'create') {
         return { created: true as const, result: await createContact(values) };
@@ -112,6 +139,8 @@ export default function ContactFormScreen({ route, navigation }: Props) {
   };
 
   const selectedGroup = groups?.find((g) => g.id === groupId);
+  const existingPhotoUrl = resolvePhotoUrl(existing?.photo);
+  const previewUri = photo?.uri ?? existingPhotoUrl;
 
   return (
     <View style={styles.flex}>
@@ -121,6 +150,20 @@ export default function ContactFormScreen({ route, navigation }: Props) {
             Your changes will be submitted for Admin approval before they apply.
           </Text>
         ) : null}
+
+        <View style={styles.photoRow}>
+          <TouchableOpacity onPress={pickPhoto} activeOpacity={0.7}>
+            {previewUri ? (
+              <Avatar.Image size={84} source={{ uri: previewUri }} />
+            ) : (
+              <Avatar.Icon size={84} icon="account" style={styles.photoPlaceholder} />
+            )}
+            <View style={styles.photoBadge}>
+              <MaterialCommunityIcons name="camera" size={14} color="white" />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.photoHint}>Tap to {previewUri ? 'change' : 'add'} photo</Text>
+        </View>
 
         <TextInput mode="outlined" label="Full name *" value={name} onChangeText={setName} style={styles.input} />
         <TextInput
@@ -263,6 +306,22 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: 16, gap: 4 },
   input: { marginBottom: 12 },
+  photoRow: { alignItems: 'center', gap: 6, marginBottom: 16 },
+  photoPlaceholder: { backgroundColor: '#E5E7EB' },
+  photoBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: branding.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  photoHint: { fontSize: 12, opacity: 0.6 },
   notice: {
     backgroundColor: '#EEF2FF',
     color: '#3730A3',

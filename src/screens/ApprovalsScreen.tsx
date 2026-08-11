@@ -9,6 +9,7 @@ import { getErrorMessage } from '../api/client';
 import { EmptyState } from '../components/EmptyState';
 import { LoadingView } from '../components/LoadingView';
 import { RootNavigationProp } from '../navigation/types';
+import { branding } from '../branding';
 
 export default function ApprovalsScreen() {
   const navigation = useNavigation<RootNavigationProp>();
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   section: { gap: 10 },
   sectionTitle: { fontWeight: '700', fontSize: 15, marginBottom: 2 },
   card: { backgroundColor: '#F9FAFB', borderRadius: 14, padding: 14, gap: 6 },
-  cardTitle: { fontWeight: '600', fontSize: 15, color: '#4F46E5' },
+  cardTitle: { fontWeight: '600', fontSize: 15, color: branding.colors.primary },
   cardMeta: { fontSize: 12, opacity: 0.6 },
   changesBlock: { backgroundColor: 'white', borderRadius: 8, padding: 8, gap: 2 },
   changeLine: { fontSize: 12 },

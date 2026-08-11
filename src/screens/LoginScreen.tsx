@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { Button, Text, TextInput } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../api/client';
+import { RootNavigationProp } from '../navigation/types';
+import { branding } from '../branding';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const navigation = useNavigation<RootNavigationProp>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [secure, setSecure] = useState(true);
@@ -35,13 +39,11 @@ export default function LoginScreen() {
     >
       <View style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>LC</Text>
-          </View>
+          <Image source={branding.logo} style={styles.logo} resizeMode="contain" />
           <Text variant="headlineMedium" style={styles.title}>
-            LaraContact
+            {branding.appName}
           </Text>
-          <Text style={styles.subtitle}>Sign in to your workspace</Text>
+          <Text style={styles.subtitle}>{branding.tagline}</Text>
         </View>
 
         <TextInput
@@ -71,6 +73,14 @@ export default function LoginScreen() {
           onSubmitEditing={handleSubmit}
         />
 
+        <Button
+          onPress={() => navigation.navigate('ForgotPassword')}
+          style={styles.forgotButton}
+          compact
+        >
+          Forgot password?
+        </Button>
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Button
@@ -92,16 +102,13 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flex: 1, justifyContent: 'center', padding: 24 },
   header: { alignItems: 'center', marginBottom: 32 },
-  logoCircle: {
+  logo: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 16,
     marginBottom: 16,
   },
-  logoText: { color: 'white', fontSize: 24, fontWeight: '700' },
+  forgotButton: { alignSelf: 'flex-end', marginTop: -4 },
   title: { fontWeight: '700' },
   subtitle: { opacity: 0.6, marginTop: 4 },
   input: { marginBottom: 12 },

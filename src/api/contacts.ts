@@ -32,6 +32,11 @@ function toFormData(values: Partial<ContactFormValues>): FormData {
       form.append('group_id', String(value));
       return;
     }
+    if (key === 'photo' && typeof value === 'object') {
+      // React Native's FormData accepts a {uri, name, type} file descriptor here.
+      form.append('photo', value as unknown as Blob);
+      return;
+    }
     form.append(key, String(value));
   });
   return form;

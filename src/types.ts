@@ -71,6 +71,16 @@ export interface ContactNote {
   author?: { id: number; name: string; email: string };
 }
 
+export interface ContactCall {
+  id: number;
+  contact_id: number;
+  user_id: number | null;
+  status: string;
+  to_number: string;
+  sent_at: string;
+  user?: { id: number; name: string; email: string } | null;
+}
+
 export interface ContactEditRequest {
   id: number;
   contact_id: number;
@@ -124,6 +134,7 @@ export interface Contact {
   owner?: { id: number; name: string; email: string } | null;
   contactNotes?: ContactNote[];
   editRequests?: ContactEditRequest[];
+  calls?: ContactCall[];
 }
 
 export interface PaginatedResponse<T> {
@@ -164,4 +175,11 @@ export interface ContactFormValues {
   notes: string;
   group_id: number | null;
   tags: number[];
+  photo: PickedPhoto | null;
+}
+
+export interface PickedPhoto {
+  uri: string;
+  name: string;
+  type: string;
 }

@@ -10,6 +10,7 @@ import ApprovalsScreen from '../screens/ApprovalsScreen';
 import ManageHubScreen from '../screens/ManageHubScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { fetchPendingQueue } from '../api/approvals';
+import { branding } from '../branding';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -41,7 +42,7 @@ export default function MainTabs() {
         tabBarIcon: ({ color, size }) => (
           <MaterialCommunityIcons name={ICONS[route.name as keyof MainTabParamList]} color={color} size={size} />
         ),
-        tabBarActiveTintColor: '#4F46E5',
+        tabBarActiveTintColor: branding.colors.primary,
       })}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
