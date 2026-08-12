@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Avatar, Button, Dialog, Portal, Text } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { RoleBadge } from '../components/RoleBadge';
 import { API_BASE_URL } from '../config';
+import { RootNavigationProp } from '../navigation/types';
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, hasPin, removePin } = useAuth();
+  const navigation = useNavigation<RootNavigationProp>();
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [removePinVisible, setRemovePinVisible] = useState(false);
 
   if (!user) return null;
 
@@ -45,6 +49,17 @@ export default function ProfileScreen() {
         <Row label="Server" value={API_BASE_URL.replace('/api', '')} />
       </View>
 
+      <View style={styles.card}>
+        <Button mode="outlined" onPress={() => navigation.navigate('SetPin')} style={styles.pinButton}>
+          {hasPin ? 'Change PIN' : 'Set PIN'}
+        </Button>
+        {hasPin ? (
+          <Button textColor="#DC2626" onPress={() => setRemovePinVisible(true)}>
+            Remove PIN
+          </Button>
+        ) : null}
+      </View>
+
       <Button mode="outlined" textColor="#DC2626" onPress={() => setConfirmVisible(true)} style={styles.signOutButton}>
         Sign out
       </Button>
@@ -56,6 +71,25 @@ export default function ProfileScreen() {
             <Button onPress={() => setConfirmVisible(false)}>Cancel</Button>
             <Button onPress={handleSignOut} loading={signingOut} textColor="#DC2626">
               Sign out
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog visible={removePinVisible} onDismiss={() => setRemovePinVisible(false)}>
+          <Dialog.Title>Remove PIN?</Dialog.Title>
+          <Dialog.Content>
+            <Text>You'll need to sign in again next time you open the app.</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setRemovePinVisible(false)}>Cancel</Button>
+            <Button
+              onPress={async () => {
+                await removePin();
+                setRemovePinVisible(false);
+              }}
+              textColor="#DC2626"
+            >
+              Remove
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -84,5 +118,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   rowLabel: { opacity: 0.6 },
   rowValue: { fontWeight: '500', flexShrink: 1, textAlign: 'right' },
+  pinButton: { borderRadius: 8 },
   signOutButton: { borderRadius: 8, borderColor: '#DC2626' },
 });

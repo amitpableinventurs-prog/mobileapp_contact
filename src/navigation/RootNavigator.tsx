@@ -6,6 +6,8 @@ import { LoadingView } from '../components/LoadingView';
 import LoginScreen from '../screens/LoginScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
+import PinLockScreen from '../screens/PinLockScreen';
+import SetPinScreen from '../screens/SetPinScreen';
 import MainTabs from './MainTabs';
 import ContactDetailScreen from '../screens/ContactDetailScreen';
 import ContactFormScreen from '../screens/ContactFormScreen';
@@ -17,7 +19,7 @@ import UserFormScreen from '../screens/UserFormScreen';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  const { user, loading } = useAuth();
+  const { user, loading, pinRequired } = useAuth();
 
   if (loading) return <LoadingView />;
 
@@ -37,9 +39,12 @@ export default function RootNavigator() {
             options={{ title: 'New password' }}
           />
         </>
+      ) : pinRequired ? (
+        <Stack.Screen name="PinLock" component={PinLockScreen} options={{ headerShown: false }} />
       ) : (
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+          <Stack.Screen name="SetPin" component={SetPinScreen} options={{ title: 'PIN lock' }} />
           <Stack.Screen
             name="ContactDetail"
             component={ContactDetailScreen}
