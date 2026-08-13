@@ -43,3 +43,6 @@ yarn-error.*
 # build artifacts / local logs
 *.log
 *.zip
+*.apk
+*.aab
+/builds
