@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Text, TextInput } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
@@ -37,7 +38,7 @@ export default function LoginScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'android' ? 'height' : 'padding'}
     >
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Image source={branding.logo} style={styles.logo} resizeMode="contain" />
           <Text variant="headlineMedium" style={styles.title}>
@@ -93,7 +94,7 @@ export default function LoginScreen() {
         >
           Sign in
         </Button>
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }

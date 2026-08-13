@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import * as authApi from '../api/auth';
-import { clearToken, getToken, saveToken } from '../api/client';
-import * as pinStorage from '../api/pinStorage';
+import * as pinApi from '../api/pin';
+import { clearToken, getToken, saveToken, setUnauthorizedHandler } from '../api/client';
 import { User } from '../types';
+
+const IDLE_LOCK_MS = 5 * 60 * 1000;
 
 interface AuthContextValue {
   user: User | null;
@@ -15,6 +18,7 @@ interface AuthContextValue {
   unlockWithPin: (pin: string) => Promise<boolean>;
   setPin: (pin: string) => Promise<void>;
   removePin: () => Promise<void>;
+  applyPinReset: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -22,8 +26,18 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasPin, setHasPin] = useState(false);
   const [pinRequired, setPinRequired] = useState(false);
+  const backgroundedAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearToken();
+      backgroundedAt.current = null;
+      setPinRequired(false);
+      setUser(null);
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -35,9 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const me = await authApi.fetchCurrentUser();
         setUser(me);
-        const pinSet = await pinStorage.hasPin();
-        setHasPin(pinSet);
-        setPinRequired(pinSet);
+        setPinRequired(me.has_pin);
       } catch {
         await clearToken();
       } finally {
@@ -46,13 +58,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // If a PIN is set, re-lock the app after it's been backgrounded for 5+ minutes.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        backgroundedAt.current = Date.now();
+        return;
+      }
+      if (nextState === 'active') {
+        const since = backgroundedAt.current;
+        backgroundedAt.current = null;
+        if (since && user?.has_pin && Date.now() - since >= IDLE_LOCK_MS) {
+          setPinRequired(true);
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, [user]);
+
   const signIn = useCallback(async (email: string, password: string) => {
     const { token, user: loggedInUser } = await authApi.login(email, password);
     await saveToken(token);
     setUser(loggedInUser);
-    const pinSet = await pinStorage.hasPin();
-    setHasPin(pinSet);
-    setPinRequired(pinSet);
+    setPinRequired(loggedInUser.has_pin);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -62,8 +90,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Token may already be invalid server-side — clear locally regardless.
     }
     await clearToken();
-    await pinStorage.clearPin();
-    setHasPin(false);
     setPinRequired(false);
     setUser(null);
   }, []);
@@ -74,19 +100,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const unlockWithPin = useCallback(async (pin: string) => {
-    const ok = await pinStorage.verifyPin(pin);
+    const ok = await pinApi.verifyPin(pin);
     if (ok) setPinRequired(false);
     return ok;
   }, []);
 
   const setPin = useCallback(async (pin: string) => {
-    await pinStorage.savePin(pin);
-    setHasPin(true);
+    const updated = await pinApi.setPin(pin);
+    setUser(updated);
   }, []);
 
   const removePin = useCallback(async () => {
-    await pinStorage.clearPin();
-    setHasPin(false);
+    const updated = await pinApi.removePin();
+    setUser(updated);
+  }, []);
+
+  const applyPinReset = useCallback((updated: User) => {
+    setUser(updated);
+    setPinRequired(false);
   }, []);
 
   const value = useMemo(
@@ -94,15 +125,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       loading,
       pinRequired,
-      hasPin,
+      hasPin: !!user?.has_pin,
       signIn,
       signOut,
       refreshUser,
       unlockWithPin,
       setPin,
       removePin,
+      applyPinReset,
     }),
-    [user, loading, pinRequired, hasPin, signIn, signOut, refreshUser, unlockWithPin, setPin, removePin]
+    [user, loading, pinRequired, signIn, signOut, refreshUser, unlockWithPin, setPin, removePin, applyPinReset]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

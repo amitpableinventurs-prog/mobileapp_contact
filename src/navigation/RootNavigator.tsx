@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '../context/AuthContext';
 import { RootStackParamList } from './types';
 import { LoadingView } from '../components/LoadingView';
@@ -8,6 +9,7 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import PinLockScreen from '../screens/PinLockScreen';
 import SetPinScreen from '../screens/SetPinScreen';
+import ForgotPinScreen from '../screens/ForgotPinScreen';
 import MainTabs from './MainTabs';
 import ContactDetailScreen from '../screens/ContactDetailScreen';
 import ContactFormScreen from '../screens/ContactFormScreen';
@@ -20,6 +22,10 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   const { user, loading, pinRequired } = useAuth();
+
+  useEffect(() => {
+    if (!loading) SplashScreen.hideAsync();
+  }, [loading]);
 
   if (loading) return <LoadingView />;
 
@@ -40,7 +46,10 @@ export default function RootNavigator() {
           />
         </>
       ) : pinRequired ? (
-        <Stack.Screen name="PinLock" component={PinLockScreen} options={{ headerShown: false }} />
+        <>
+          <Stack.Screen name="PinLock" component={PinLockScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ForgotPin" component={ForgotPinScreen} options={{ title: 'Forgot PIN' }} />
+        </>
       ) : (
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />

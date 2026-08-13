@@ -1,8 +1,12 @@
 import { apiClient } from './client';
 import { Contact, ContactEditRequest, PendingQueue } from '../types';
 
-export function fetchPendingQueue(): Promise<PendingQueue> {
-  return apiClient.get<PendingQueue>('/contacts/pending').then((r) => r.data);
+export function fetchPendingQueue(params?: { contactsPage?: number; editsPage?: number }): Promise<PendingQueue> {
+  return apiClient
+    .get<PendingQueue>('/contacts/pending', {
+      params: { contacts_page: params?.contactsPage, edits_page: params?.editsPage },
+    })
+    .then((r) => r.data);
 }
 
 export function approveContact(id: number): Promise<Contact> {

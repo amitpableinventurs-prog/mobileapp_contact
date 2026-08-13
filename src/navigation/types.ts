@@ -6,6 +6,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   ResetPassword: { email: string } | undefined;
   PinLock: undefined;
+  ForgotPin: undefined;
   Main: undefined;
   ContactDetail: { id: number };
   ContactForm: ContactFormParams;

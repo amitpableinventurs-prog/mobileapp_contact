@@ -25,6 +25,7 @@ export interface User {
   email: string;
   role: Role;
   is_active: boolean;
+  has_pin: boolean;
   current_team_id: number | null;
   team_name: string | null;
   permissions: Permissions;

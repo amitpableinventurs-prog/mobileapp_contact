@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Text, TextInput } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { branding } from '../branding';
+import { getErrorMessage } from '../api/client';
+import { RootNavigationProp } from '../navigation/types';
 
 export default function PinLockScreen() {
   const { user, unlockWithPin, signOut } = useAuth();
+  const navigation = useNavigation<RootNavigationProp>();
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -16,18 +21,23 @@ export default function PinLockScreen() {
     setError(null);
     if (digits.length === 6) {
       setChecking(true);
-      const ok = await unlockWithPin(digits);
-      setChecking(false);
-      if (!ok) {
-        setError('Wrong PIN. Try again.');
-        setPin('');
+      try {
+        const ok = await unlockWithPin(digits);
+        if (!ok) {
+          setError('Wrong PIN. Try again.');
+          setPin('');
+        }
+      } catch (err) {
+        setError(getErrorMessage(err));
+      } finally {
+        setChecking(false);
       }
     }
   };
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'android' ? 'height' : 'padding'}>
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Image source={branding.logo} style={styles.logo} resizeMode="contain" />
           <Text variant="headlineMedium" style={styles.title}>
@@ -50,10 +60,13 @@ export default function PinLockScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Button onPress={() => signOut()} compact style={styles.signOutButton}>
-          Forgot PIN? Sign out
+        <Button onPress={() => navigation.navigate('ForgotPin')} compact style={styles.signOutButton}>
+          Forgot PIN?
         </Button>
-      </View>
+        <Button onPress={() => signOut()} compact textColor="#DC2626">
+          Sign out
+        </Button>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }

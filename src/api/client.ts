@@ -7,6 +7,7 @@ const TOKEN_KEY = 'laracontact_token';
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: { Accept: 'application/json' },
+  timeout: 15000,
 });
 
 apiClient.interceptors.request.use(async (config) => {
@@ -16,6 +17,27 @@ apiClient.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+/**
+ * Fires when any request comes back 401 (token missing/expired/revoked
+ * server-side). AuthContext registers this so it can drop the session and
+ * bounce the user back to Login instead of every screen showing a raw error.
+ */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      onUnauthorized?.();
+    }
+    return Promise.reject(error);
+  }
+);
 
 export async function saveToken(token: string) {
   await tokenStorage.setItemAsync(TOKEN_KEY, token);
@@ -39,6 +61,9 @@ export function getErrorMessage(error: unknown): string {
       if (first?.[0]) return first[0];
     }
     if (data?.message) return data.message;
+    if (err.code === 'ECONNABORTED') {
+      return 'The request timed out. Check your connection and try again.';
+    }
     if (err.message === 'Network Error') {
       return 'Cannot reach the server. Check the API address in src/config.ts and that the backend is running.';
     }

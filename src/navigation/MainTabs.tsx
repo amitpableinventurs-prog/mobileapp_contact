@@ -29,7 +29,7 @@ export default function MainTabs() {
 
   const { data: pending } = useQuery({
     queryKey: ['pending-queue'],
-    queryFn: fetchPendingQueue,
+    queryFn: () => fetchPendingQueue(),
     enabled: !!canApprove,
     refetchInterval: 60000,
   });

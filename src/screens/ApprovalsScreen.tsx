@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Snackbar, Text } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { getErrorMessage } from '../api/client';
 import { EmptyState } from '../components/EmptyState';
 import { LoadingView } from '../components/LoadingView';
 import { RootNavigationProp } from '../navigation/types';
+import { Contact, ContactEditRequest } from '../types';
 import { branding } from '../branding';
 
 export default function ApprovalsScreen() {
@@ -18,8 +19,58 @@ export default function ApprovalsScreen() {
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['pending-queue'],
-    queryFn: fetchPendingQueue,
+    queryFn: () => fetchPendingQueue(),
   });
+
+  // The pending queue is capped at 25 items per section server-side; these
+  // track any extra pages fetched via "Load more" and are dropped whenever
+  // the base query re-fetches (approve/reject can shift what's on each page).
+  const [extraContacts, setExtraContacts] = useState<Contact[]>([]);
+  const [extraEdits, setExtraEdits] = useState<ContactEditRequest[]>([]);
+  const [contactsPage, setContactsPage] = useState(1);
+  const [editsPage, setEditsPage] = useState(1);
+  const [loadingMoreContacts, setLoadingMoreContacts] = useState(false);
+  const [loadingMoreEdits, setLoadingMoreEdits] = useState(false);
+
+  useEffect(() => {
+    setExtraContacts([]);
+    setExtraEdits([]);
+    setContactsPage(1);
+    setEditsPage(1);
+  }, [data]);
+
+  const contactsLastPage = data?.contacts.last_page ?? 1;
+  const editsLastPage = data?.edit_requests.last_page ?? 1;
+
+  const loadMoreContacts = async () => {
+    if (loadingMoreContacts || contactsPage >= contactsLastPage) return;
+    setLoadingMoreContacts(true);
+    try {
+      const next = contactsPage + 1;
+      const page = await fetchPendingQueue({ contactsPage: next });
+      setExtraContacts((prev) => [...prev, ...page.contacts.data]);
+      setContactsPage(next);
+    } catch (err) {
+      setSnackbar(getErrorMessage(err));
+    } finally {
+      setLoadingMoreContacts(false);
+    }
+  };
+
+  const loadMoreEdits = async () => {
+    if (loadingMoreEdits || editsPage >= editsLastPage) return;
+    setLoadingMoreEdits(true);
+    try {
+      const next = editsPage + 1;
+      const page = await fetchPendingQueue({ editsPage: next });
+      setExtraEdits((prev) => [...prev, ...page.edit_requests.data]);
+      setEditsPage(next);
+    } catch (err) {
+      setSnackbar(getErrorMessage(err));
+    } finally {
+      setLoadingMoreEdits(false);
+    }
+  };
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['pending-queue'] });
@@ -48,8 +99,10 @@ export default function ApprovalsScreen() {
 
   if (isLoading) return <LoadingView />;
 
-  const pendingContacts = data?.contacts.data ?? [];
-  const pendingEdits = data?.edit_requests.data ?? [];
+  const pendingContacts = [...(data?.contacts.data ?? []), ...extraContacts];
+  const pendingEdits = [...(data?.edit_requests.data ?? []), ...extraEdits];
+  const totalContacts = data?.contacts.total ?? pendingContacts.length;
+  const totalEdits = data?.edit_requests.total ?? pendingEdits.length;
 
   if (pendingContacts.length === 0 && pendingEdits.length === 0) {
     return <EmptyState icon="check-circle-outline" title="All caught up" subtitle="No pending approvals." />;
@@ -62,7 +115,7 @@ export default function ApprovalsScreen() {
     >
       {pendingContacts.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>New contacts ({pendingContacts.length})</Text>
+          <Text style={styles.sectionTitle}>New contacts ({totalContacts})</Text>
           {pendingContacts.map((contact) => (
             <View key={contact.id} style={styles.card}>
               <Text
@@ -92,12 +145,17 @@ export default function ApprovalsScreen() {
               </View>
             </View>
           ))}
+          {contactsPage < contactsLastPage ? (
+            <Button onPress={loadMoreContacts} loading={loadingMoreContacts} disabled={loadingMoreContacts} compact>
+              Load more
+            </Button>
+          ) : null}
         </View>
       ) : null}
 
       {pendingEdits.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Edit requests ({pendingEdits.length})</Text>
+          <Text style={styles.sectionTitle}>Edit requests ({totalEdits})</Text>
           {pendingEdits.map((edit) => (
             <View key={edit.id} style={styles.card}>
               <Text
@@ -133,6 +191,11 @@ export default function ApprovalsScreen() {
               </View>
             </View>
           ))}
+          {editsPage < editsLastPage ? (
+            <Button onPress={loadMoreEdits} loading={loadingMoreEdits} disabled={loadingMoreEdits} compact>
+              Load more
+            </Button>
+          ) : null}
         </View>
       ) : null}
 
