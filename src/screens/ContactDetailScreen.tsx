@@ -26,6 +26,7 @@ import {
   reactivateContact,
   suspendContact,
 } from '../api/contacts';
+import * as approvalsApi from '../api/approvals';
 import { addNote, deleteNote } from '../api/notes';
 import { logCall } from '../api/calls';
 import { getErrorMessage } from '../api/client';
@@ -53,7 +54,33 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     queryClient.invalidateQueries({ queryKey: ['contact', id] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['pending-queue'] });
   };
+
+  const contactApprovalMutation = useMutation({
+    mutationFn: (decision: 'approve' | 'reject') =>
+      decision === 'approve' ? approvalsApi.approveContact(id) : approvalsApi.rejectContact(id),
+    onSuccess: (_, decision) => {
+      invalidate();
+      setSnackbar(decision === 'approve' ? 'Contact approved.' : 'Contact rejected.');
+    },
+    onError: (err) => setSnackbar(getErrorMessage(err)),
+  });
+
+  const editApprovalMutation = useMutation({
+    mutationFn: async ({ editId, decision }: { editId: number; decision: 'approve' | 'reject' }) => {
+      if (decision === 'approve') {
+        await approvalsApi.approveEditRequest(editId);
+      } else {
+        await approvalsApi.rejectEditRequest(editId);
+      }
+    },
+    onSuccess: (_, { decision }) => {
+      invalidate();
+      setSnackbar(decision === 'approve' ? 'Edit approved.' : 'Edit rejected.');
+    },
+    onError: (err) => setSnackbar(getErrorMessage(err)),
+  });
 
   const actionMutation = useMutation({
     mutationFn: async (action: 'suspend' | 'ban' | 'reactivate' | 'delete') => {
@@ -124,6 +151,8 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   const canDelete = user?.permissions.contacts_delete ?? false;
   const canReactivate = user?.permissions.contacts_reactivate ?? false;
   const canEdit = (user?.permissions.contacts_update ?? false) && contact.approval_status !== 'pending';
+  const canApproveContacts = user?.permissions.approve_contacts ?? false;
+  const canApproveEdits = user?.permissions.approve_edits ?? false;
   const pendingEdit = contact.editRequests?.find((e) => e.status === 'pending');
 
   const initials = contact.name
@@ -186,12 +215,60 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
+        {contact.approval_status === 'pending' && canApproveContacts ? (
+          <View style={styles.approvalBanner}>
+            <Text style={styles.approvalBannerText}>This contact is awaiting your approval.</Text>
+            <View style={styles.approvalActions}>
+              <Button
+                mode="contained-tonal"
+                compact
+                onPress={() => contactApprovalMutation.mutate('approve')}
+                loading={contactApprovalMutation.isPending}
+              >
+                Approve
+              </Button>
+              <Button
+                mode="outlined"
+                compact
+                textColor="#DC2626"
+                onPress={() => contactApprovalMutation.mutate('reject')}
+                disabled={contactApprovalMutation.isPending}
+              >
+                Reject
+              </Button>
+            </View>
+          </View>
+        ) : null}
+
         {pendingEdit ? (
           <View style={styles.pendingBanner}>
-            <MaterialCommunityIcons name="clock-alert-outline" size={18} color="#92400E" />
-            <Text style={styles.pendingBannerText}>
-              An edit to this contact is awaiting approval.
-            </Text>
+            <View style={styles.pendingBannerHeader}>
+              <MaterialCommunityIcons name="clock-alert-outline" size={18} color="#92400E" />
+              <Text style={styles.pendingBannerText}>
+                An edit to this contact is awaiting approval.
+              </Text>
+            </View>
+            {canApproveEdits ? (
+              <View style={styles.approvalActions}>
+                <Button
+                  mode="contained-tonal"
+                  compact
+                  onPress={() => editApprovalMutation.mutate({ editId: pendingEdit.id, decision: 'approve' })}
+                  loading={editApprovalMutation.isPending}
+                >
+                  Approve edit
+                </Button>
+                <Button
+                  mode="outlined"
+                  compact
+                  textColor="#DC2626"
+                  onPress={() => editApprovalMutation.mutate({ editId: pendingEdit.id, decision: 'reject' })}
+                  disabled={editApprovalMutation.isPending}
+                >
+                  Reject edit
+                </Button>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -436,14 +513,21 @@ const styles = StyleSheet.create({
   },
   quickActionLabel: { fontSize: 11, opacity: 0.7 },
   pendingBanner: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
+    gap: 10,
     backgroundColor: '#FEF3C7',
     padding: 12,
     borderRadius: 10,
   },
+  pendingBannerHeader: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   pendingBannerText: { color: '#92400E', flex: 1 },
+  approvalBanner: {
+    gap: 10,
+    backgroundColor: '#EEF2FF',
+    padding: 12,
+    borderRadius: 10,
+  },
+  approvalBannerText: { color: '#3730A3', fontSize: 14 },
+  approvalActions: { flexDirection: 'row', gap: 8 },
   card: { backgroundColor: '#F9FAFB', borderRadius: 14, padding: 14, gap: 10 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   infoValue: { fontSize: 14, flex: 1 },

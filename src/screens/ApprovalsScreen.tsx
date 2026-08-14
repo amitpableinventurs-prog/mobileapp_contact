@@ -166,12 +166,17 @@ export default function ApprovalsScreen() {
               </Text>
               <Text style={styles.cardMeta}>Requested by {edit.requestedBy?.name ?? 'Unknown'}</Text>
               <View style={styles.changesBlock}>
-                {Object.entries(edit.changes).map(([field, value]) => (
-                  <Text key={field} style={styles.changeLine}>
-                    <Text style={styles.changeField}>{field}: </Text>
-                    {String(value)}
-                  </Text>
-                ))}
+                {Object.entries(edit.changes).map(([field, value]) => {
+                  const original = edit.original?.[field];
+                  const originalDisplay =
+                    original === null || original === undefined || original === '' ? '—' : String(original);
+                  return (
+                    <Text key={field} style={styles.changeLine}>
+                      <Text style={styles.changeField}>{field}: </Text>
+                      {originalDisplay} <Text style={styles.changeArrow}>→</Text> {String(value)}
+                    </Text>
+                  );
+                })}
               </View>
               <View style={styles.actions}>
                 <Button
@@ -216,5 +221,6 @@ const styles = StyleSheet.create({
   changesBlock: { backgroundColor: 'white', borderRadius: 8, padding: 8, gap: 2 },
   changeLine: { fontSize: 12 },
   changeField: { fontWeight: '600' },
+  changeArrow: { opacity: 0.5 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
 });
